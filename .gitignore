@@ -1,0 +1,13 @@
+data/raw
+
+# macOS
+.DS_Store
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
