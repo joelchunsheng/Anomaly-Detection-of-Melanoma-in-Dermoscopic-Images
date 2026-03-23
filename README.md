@@ -1,5 +1,5 @@
 # 50.039 Deep Learning Y2026 
-Anomaly Detection of Pneumonia from Chest X-Ray Images
+Anomaly Detection of Melanoma in Dermoscopic Images
 
 ## Project Structure
 
@@ -21,3 +21,10 @@ melanoma-anomaly-detection/
 ├── requirements.txt       # Project dependencies
 └── README.md              # Project documentation
 ```
+
+## Dataset Setup
+
+Run the following command:
+
+```bash
+python scripts/setup_data.py
