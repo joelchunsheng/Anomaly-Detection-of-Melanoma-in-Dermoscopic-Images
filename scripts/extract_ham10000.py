@@ -2,7 +2,7 @@ import pandas as pd
 
 #  Check parquet file
 
-# df = pd.read_parquet("data/raw/HAM10000/train-00000-of-00001.parquet")
+# df = pd.read_parquet("data/raw/HAM10000/data/train-00000-of-00001.parquet")
 # print(df.columns)
 # print(df.head())
 
@@ -11,7 +11,7 @@ import io
 import pandas as pd
 from PIL import Image
 
-PARQUET_PATH = "data/raw/HAM10000/train-00000-of-00001.parquet"
+PARQUET_PATH = "data/raw/HAM10000/data/train-00000-of-00001.parquet"
 OUTPUT_DIR = "data/raw/HAM10000"
 IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
 METADATA_CSV = os.path.join(OUTPUT_DIR, "metadata.csv")
