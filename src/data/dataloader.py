@@ -12,11 +12,15 @@ def get_dataloaders(
     batch_size: int = 32,
     image_size: int = 224,
     num_workers: int = 0,
+    transform_train=None,
 ):
+    if transform_train is None:
+        transform_train = get_train_transforms(image_size=image_size)
+
     train_dataset = HAM10000Dataset(
         csv_path=train_csv,
         image_dir=image_dir,
-        transform=get_train_transforms(image_size=image_size),
+        transform=transform_train,
     )
 
     val_dataset = HAM10000Dataset(

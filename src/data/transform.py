@@ -13,6 +13,19 @@ def get_train_transforms(image_size: int = 224):
     ])
 
 
+def get_augmented_train_transforms(image_size: int = 224):
+    return transforms.Compose([
+        transforms.Resize((image_size, image_size)),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomVerticalFlip(p=0.5),
+        transforms.RandomRotation(degrees=30),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=(0.9, 1.1)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+    ])
+
+
 def get_eval_transforms(image_size: int = 224):
     return transforms.Compose([
         transforms.Resize((image_size, image_size)),
