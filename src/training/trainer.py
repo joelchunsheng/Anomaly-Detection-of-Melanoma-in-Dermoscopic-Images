@@ -1,5 +1,6 @@
 import torch
 from sklearn.metrics import recall_score, fbeta_score
+from tqdm import tqdm
 
 
 def train_one_epoch(model, dataloader, criterion, optimizer, device):
@@ -11,7 +12,8 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device):
     all_labels = []
     all_preds = []
 
-    for images, labels in dataloader:
+    pbar = tqdm(dataloader, desc='Train', leave=False)
+    for images, labels in pbar:
         images = images.to(device)
         labels = labels.float().unsqueeze(1).to(device)
 
@@ -31,6 +33,8 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device):
 
         all_labels.extend(labels.squeeze(1).cpu().int().tolist())
         all_preds.extend(preds.squeeze(1).cpu().int().tolist())
+
+        pbar.set_postfix(loss=f'{running_loss / total_samples:.4f}')
 
     epoch_loss = running_loss / total_samples
     epoch_acc = running_correct / total_samples
@@ -55,7 +59,8 @@ def validate_one_epoch(model, dataloader, criterion, device):
     all_labels = []
     all_preds = []
 
-    for images, labels in dataloader:
+    pbar = tqdm(dataloader, desc='Val', leave=False)
+    for images, labels in pbar:
         images = images.to(device)
         labels = labels.float().unsqueeze(1).to(device)
 
@@ -70,6 +75,8 @@ def validate_one_epoch(model, dataloader, criterion, device):
 
         all_labels.extend(labels.squeeze(1).cpu().int().tolist())
         all_preds.extend(preds.squeeze(1).cpu().int().tolist())
+
+        pbar.set_postfix(loss=f'{running_loss / total_samples:.4f}')
 
     epoch_loss = running_loss / total_samples
     epoch_acc = running_correct / total_samples
