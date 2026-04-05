@@ -14,27 +14,28 @@ def run_command(cmd):
 def main():
     print("Starting dataset setup...")
 
-    data_dir = "data/raw"
-    dataset_dir = os.path.join(data_dir, "HAM10000")
+    raw_dir = "data_new/raw"
+    os.makedirs(raw_dir, exist_ok=True)
 
-    os.makedirs(data_dir, exist_ok=True)
-
-    # Step 1: Clone dataset
-    if not os.path.exists(dataset_dir):
-        print(f"Cloning dataset into {dataset_dir}...")
-        run_command(f"git clone https://huggingface.co/datasets/Nagabu/HAM10000 {dataset_dir}")
+    # Step 1: Download dataset via Kaggle API
+    # Requires kaggle.json at ~/.kaggle/kaggle.json
+    # Install with: pip install kaggle
+    dataset_marker = os.path.join(raw_dir, "HAM10000_metadata")
+    if not os.path.exists(dataset_marker):
+        print("Downloading dataset from Kaggle...")
+        run_command(
+            f"kaggle datasets download -d nightfury007/ham10000-isic2018-raw "
+            f"-p {raw_dir} --unzip"
+        )
     else:
-        print("Dataset already exists, skipping clone.")
+        print("Dataset already exists, skipping download.")
 
-    # Step 2: Extract dataset
-    print("Running extraction script...")
-    run_command("python scripts/extract_ham10000.py")
-
-    # Step 3: Split dataset
+    # Step 2: Generate train/val/test splits
     print("Running split script...")
     run_command("python -m scripts.split_dataset")
 
     print("Dataset setup complete.")
+    print("Splits written to data_new/splits/")
 
 
 if __name__ == "__main__":

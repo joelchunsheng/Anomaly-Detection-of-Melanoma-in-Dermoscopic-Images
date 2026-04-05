@@ -1,4 +1,6 @@
 data/raw
+data_new/raw
+data_new/images
 
 # macOS
 .DS_Store
@@ -11,3 +13,5 @@ __pycache__/
 
 # Jupyter
 .ipynb_checkpoints/
+
+.vscode/

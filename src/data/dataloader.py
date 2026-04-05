@@ -9,6 +9,7 @@ def get_dataloaders(
     val_csv: str,
     test_csv: str,
     image_dir: str,
+    test_image_dir: str = None,
     batch_size: int = 32,
     image_size: int = 224,
     num_workers: int = 0,
@@ -16,6 +17,9 @@ def get_dataloaders(
 ):
     if transform_train is None:
         transform_train = get_train_transforms(image_size=image_size)
+
+    if test_image_dir is None:
+        test_image_dir = image_dir
 
     train_dataset = HAM10000Dataset(
         csv_path=train_csv,
@@ -31,7 +35,7 @@ def get_dataloaders(
 
     test_dataset = HAM10000Dataset(
         csv_path=test_csv,
-        image_dir=image_dir,
+        image_dir=test_image_dir,
         transform=get_eval_transforms(image_size=image_size),
     )
 

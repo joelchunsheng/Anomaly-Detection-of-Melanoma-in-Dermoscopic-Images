@@ -1,17 +1,16 @@
 from src.data.split import create_data_splits
 
-# To run script
+# To run script:
 # python -m scripts.split_dataset
 
-# test, train, val csv added to data/splits
+# Outputs train.csv, val.csv, test.csv to data_new/splits/
 
 def main():
     create_data_splits(
-        input_csv="data/raw/HAM10000/metadata.csv",
-        output_dir="data/splits",
-        train_size=0.7,
-        val_size=0.15,
-        test_size=0.15,
+        train_metadata_csv="data_new/raw/HAM10000_metadata",
+        test_groundtruth_csv="data_new/raw/ISIC2018_Task3_Test_GroundTruth.csv",
+        output_dir="data_new/splits",
+        val_size=0.2,
         random_state=42,
     )
 

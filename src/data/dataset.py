@@ -20,8 +20,8 @@ class HAM10000Dataset(Dataset):
     def __getitem__(self, idx):
         row = self.data.iloc[idx]
 
-        image_name = row["image_id"]
-        label = 1 - int(row["label"])
+        image_name = row["image_id"] + ".jpg"
+        label = int(row["label"])
 
         image_path = self.image_dir / image_name
         if not image_path.exists():

@@ -1,45 +1,50 @@
 from pathlib import Path
 
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GroupShuffleSplit
+
+
+def _map_label(dx_series):
+    return (dx_series == "mel").astype(int)
 
 
 def create_data_splits(
-    input_csv,
+    train_metadata_csv,
+    test_groundtruth_csv,
     output_dir,
-    train_size=0.7,
-    val_size=0.15,
-    test_size=0.15,
+    val_size=0.2,
     random_state=42,
 ):
-
-    input_csv = Path(input_csv)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    df = pd.read_csv(input_csv)
+    # --- Train / Val split ---
+    df = pd.read_csv(train_metadata_csv)
+    df["label"] = _map_label(df["dx"])
 
-    train_df, temp_df = train_test_split(
-        df,
-        test_size=(1 - train_size),
-        stratify=df["label"],
-        random_state=random_state,
-    )
+    gss = GroupShuffleSplit(n_splits=1, test_size=val_size, random_state=random_state)
+    train_idx, val_idx = next(gss.split(df, groups=df["lesion_id"]))
 
-    val_ratio_adjusted = val_size / (val_size + test_size)
+    train_df = df.iloc[train_idx][["image_id", "label"]].reset_index(drop=True)
+    val_df = df.iloc[val_idx][["image_id", "label"]].reset_index(drop=True)
 
-    val_df, test_df = train_test_split(
-        temp_df,
-        test_size=(1 - val_ratio_adjusted),
-        stratify=temp_df["label"],
-        random_state=random_state,
-    )
+    # --- Test split ---
+    test_df = pd.read_csv(test_groundtruth_csv)
+    test_df["label"] = _map_label(test_df["dx"])
+    test_df = test_df[["image_id", "label"]].reset_index(drop=True)
 
     train_df.to_csv(output_dir / "train.csv", index=False)
     val_df.to_csv(output_dir / "val.csv", index=False)
     test_df.to_csv(output_dir / "test.csv", index=False)
 
     print("Data split completed.")
-    print(f"Train set: {len(train_df)} samples")
-    print(f"Validation set: {len(val_df)} samples")
-    print(f"Test set: {len(test_df)} samples")
+    print(f"Train set:      {len(train_df)} samples  ({train_df['label'].sum()} melanoma)")
+    print(f"Validation set: {len(val_df)} samples  ({val_df['label'].sum()} melanoma)")
+    print(f"Test set:       {len(test_df)} samples  ({test_df['label'].sum()} melanoma)")
+
+    # Leakage check
+    train_lesions = set(df.iloc[train_idx]["lesion_id"])
+    val_lesions = set(df.iloc[val_idx]["lesion_id"])
+    overlap = train_lesions & val_lesions
+    assert len(overlap) == 0, f"Lesion overlap detected: {overlap}"
+    print("Leakage check passed: no lesion_id overlap between train and val.")
