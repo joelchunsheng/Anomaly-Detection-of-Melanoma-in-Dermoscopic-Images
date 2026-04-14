@@ -30,9 +30,17 @@ def main():
     else:
         print("Dataset already exists, skipping download.")
 
-    # Step 2: Generate train/val/test splits
+    # Step 2: Filter out missing images
+    print("Filtering dataset...")
+    run_command("python -m scripts.filter_dataset") 
+
+    # Step 3: Generate train/val/test splits
     print("Running split script...")
     run_command("python -m scripts.split_dataset")
+
+    # Step 4: Preprocess images (resize to 224x224)
+    print("Running image preprocessing script...")
+    run_command("python -m scripts.preprocess_images")
 
     print("Dataset setup complete.")
     print("Splits written to data_new/splits/")

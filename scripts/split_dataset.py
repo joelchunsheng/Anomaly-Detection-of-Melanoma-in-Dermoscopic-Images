@@ -18,7 +18,7 @@ def main():
     output_dir = PROJECT_ROOT / "data_new" / "splits"
 
     create_data_splits(
-        train_metadata_csv=raw_dir / "HAM10000_metadata",
+        train_metadata_csv=PROJECT_ROOT / "data_new" / "raw" / "HAM10000_metadata_clean.csv",
         test_groundtruth_csv=raw_dir / "ISIC2018_Task3_Test_GroundTruth.csv",
         output_dir=output_dir,
         val_size=0.2,

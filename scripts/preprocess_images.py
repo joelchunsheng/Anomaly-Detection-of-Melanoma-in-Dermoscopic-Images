@@ -20,8 +20,8 @@ from tqdm import tqdm
 SIZE = (224, 224)
 
 SOURCES = [
-    ("data_new/raw/HAM10000_images_combined_600x450", "data_new/images/train"),
-    ("data_new/raw/ISIC2018_Task3_Test_Images",        "data_new/images/test"),
+    ("data_new/raw/dataverse_files/HAM10000_images_combined_600x450", "data_new/images/train"),
+    ("data_new/raw/dataverse_files/ISIC2018_Task3_Test_Images",        "data_new/images/test"),
 ]
 
 
