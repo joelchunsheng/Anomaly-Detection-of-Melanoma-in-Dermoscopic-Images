@@ -202,16 +202,15 @@ def render_model_statistics_tab() -> None:
     st.dataframe(styled_df, width="stretch", hide_index=True)
 
 
-def render_architecture_tab(table_rows: list[dict]) -> None:
-    table_df = pd.DataFrame(
-        table_rows,
-        columns=["Notebook", "Key Changes", "Val F2", "Test F2", "Recall", "Prec", "AUC"],
-    )
+def render_architecture_tab(table_data) -> None:
+    columns = list(table_data[0].keys()) if table_data else []
+    table_df = pd.DataFrame(table_data, columns=columns)
     st.dataframe(table_df, width="stretch", hide_index=True)
 
 
 def render_prediction_tab() -> None:
-    model_options = {model["display_name"]: model for model in MODEL_RESULTS}
+    best_models = [model for model in MODEL_RESULTS if model.get("is_best")]
+    model_options = {model["display_name"]: model for model in best_models}
     left_col, right_col = st.columns([0.95, 1.25], gap="large")
 
     with left_col:

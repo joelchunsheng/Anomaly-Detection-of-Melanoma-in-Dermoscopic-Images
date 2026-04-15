@@ -45,13 +45,12 @@ def render_dataset_summary(dataset_stats: dict) -> None:
             "Melanoma vs Nevus",
         )
 
-    st.markdown("### Dataset Notes")
-    note_left, note_right = st.columns([1.2, 1], gap="large")
+    st.markdown("### Model Notes")
+    note_left, note_right = st.columns(2, gap="large")
     with note_left:
         st.info(dataset_stats["imbalance_note"])
     with note_right:
-        derived_ratio = dataset_stats["melanoma_count"] / max(dataset_stats["nevus_count"], 1)
-        st.success(f"Minority-class prevalence: {derived_ratio:.2%}")
+        st.success(dataset_stats["weighted_note"])
 
 
 def plot_class_distribution(dataset_stats: dict) -> go.Figure:
