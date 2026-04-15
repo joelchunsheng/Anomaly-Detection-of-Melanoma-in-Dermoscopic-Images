@@ -16,29 +16,38 @@ from sklearn.metrics import (
 CLASS_NAMES = ["Non-Melanoma", "Melanoma"]
 
 
-def plot_training_curves(train_history, val_history):
+def plot_training_curves(train_history, val_history, best_epoch=None):
     """
-    Plot Loss, Balanced Accuracy, Recall, and F2 curves from training history.
+    Plot Loss, Balanced Accuracy, Recall, F2, and AUC-ROC curves from training history.
 
     Args:
-        train_history: list of dicts with keys {loss, balanced_accuracy, recall, f2}
+        train_history: list of dicts with keys {loss, balanced_accuracy, recall, f2, auc}
         val_history:   list of dicts with same keys
+        best_epoch:    if provided, truncate plots at this epoch (1-indexed) — the epoch
+                       at which the best model checkpoint was saved
     """
+    if best_epoch is not None:
+        train_history = train_history[:best_epoch]
+        val_history   = val_history[:best_epoch]
+
     epochs = range(1, len(train_history) + 1)
     metrics = [
         ("loss",               "Loss"),
         ("balanced_accuracy",  "Balanced Accuracy"),
         ("recall",             "Recall (Melanoma)"),
         ("f2",                 "F2 Score (Melanoma)"),
+        ("auc",                "AUC-ROC"),
     ]
 
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+    fig, axes = plt.subplots(2, 3, figsize=(18, 8))
     for ax, (key, title) in zip(axes.flat, metrics):
         ax.plot(epochs, [m[key] for m in train_history], label="Train")
         ax.plot(epochs, [m[key] for m in val_history],   label="Validation")
         ax.set_title(title)
         ax.set_xlabel("Epoch")
         ax.legend()
+
+    axes.flat[-1].set_visible(False)  # hide unused 6th cell
 
     fig.tight_layout()
     plt.show()

@@ -67,7 +67,6 @@ Example:
 
 ```python
 import sys
-import random
 from pathlib import Path
 
 import numpy as np
@@ -85,17 +84,11 @@ from src.data.transform import get_augmented_train_transforms
 from src.models.<arch> import <model_factory>
 from src.training.trainer import train_one_epoch, validate_one_epoch
 from src.utils import plot_training_curves, find_best_threshold, evaluate_model
+from src.utils import seed_everything, seed_worker
 
 import pandas as pd
 
-def set_seed(seed=42):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-set_seed(42)
+g = seed_everything(42)
 
 if torch.cuda.is_available():
     device = torch.device('cuda')
@@ -115,7 +108,7 @@ print(f'Using device: {device}')
 ## Load and split data
 ```
 
-**Cell 5 (code)** — load train, val, and test splits. Build the train loader manually (not via `get_dataloaders`) so that `num_workers > 0` and `persistent_workers=True` can be set — this prevents the augmentation pipeline from being the bottleneck.
+**Cell 5 (code)** — load train, val, and test splits. Build the train loader manually (not via `get_dataloaders`) so that `num_workers > 0`, `persistent_workers=True`, and the determinism hooks from `seed_everything` can be passed in.
 
 ```python
 train_dataset = HAM10000Dataset(
@@ -129,6 +122,8 @@ train_loader = torch.utils.data.DataLoader(
     shuffle=True,
     num_workers=4,
     persistent_workers=True,
+    worker_init_fn=seed_worker,
+    generator=g,
 )
 
 _, val_loader, test_loader = get_dataloaders(
@@ -149,7 +144,7 @@ pos_weight   = torch.tensor([num_nevus / num_melanoma], dtype=torch.float32).to(
 print('Positive weight:', pos_weight)
 ```
 
-This cell is the same for every notebook. Do not change it unless the dataset changes.
+`worker_init_fn=seed_worker` and `generator=g` come from `seed_everything(42)` in Cell 3. The val/test loaders use `shuffle=False` and deterministic eval transforms, so they do not need these arguments. This cell is the same for every notebook. Do not change it unless the dataset changes.
 
 ---
 
@@ -287,6 +282,114 @@ Prints: threshold, AUC-ROC, balanced accuracy, F2, full classification report, a
 
 ---
 
+---
+
+## TTA Variant (optional — only if the notebook uses Test-Time Augmentation)
+
+When a notebook applies TTA at inference, Cells 13 and 15 are replaced with the TTA versions below. The cell count and markdown headers stay the same.
+
+### Why TTA must use only deterministic transforms
+
+All 8 TTA transforms must be **fully deterministic** (no `ColorJitter` or other stochastic ops). Using a random transform like ColorJitter makes the averaged prediction different on every run, even with seeding, because the random state advances unpredictably per image. Fixed-degree rotations and `p=1.0` flips are the only correct choices.
+
+### Standard TTA transform set (8 augmentations)
+
+```python
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD  = [0.229, 0.224, 0.225]
+
+def _base(extra=None):
+    ops = [transforms.Resize((224, 224))]
+    if extra:
+        ops += extra
+    ops += [transforms.ToTensor(), transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)]
+    return transforms.Compose(ops)
+
+tta_transforms = [
+    _base(),                                                        # 1. identity
+    _base([transforms.RandomHorizontalFlip(p=1.0)]),                # 2. H-flip
+    _base([transforms.RandomVerticalFlip(p=1.0)]),                  # 3. V-flip
+    _base([transforms.RandomHorizontalFlip(p=1.0),
+           transforms.RandomVerticalFlip(p=1.0)]),                  # 4. HV-flip
+    _base([transforms.RandomRotation(degrees=(90, 90))]),           # 5. rotate 90
+    _base([transforms.RandomRotation(degrees=(180, 180))]),         # 6. rotate 180
+    _base([transforms.RandomRotation(degrees=(270, 270))]),         # 7. rotate 270
+    _base([transforms.RandomRotation(degrees=(45, 45))]),           # 8. rotate 45
+]
+```
+
+### Cell 13 (TTA variant) — Threshold Tuning with TTA
+
+Replace `find_best_threshold` with a manual per-image TTA loop. Reload datasets with `transform=None` so the TTA transforms are applied inside the loop:
+
+```python
+model.load_state_dict(torch.load(str(ROOT / 'models/<model_name>_best.pth'), map_location=device))
+model.eval()
+
+# (define _base and tta_transforms as above)
+
+val_dataset_raw = HAM10000Dataset(
+    csv_path=str(ROOT / 'data_new/splits/val.csv'),
+    image_dir=str(ROOT / 'data_new/images/train'),
+    transform=None,
+)
+
+def tta_predict(model, dataset, device, tta_transforms):
+    all_probs, all_labels = [], []
+    with torch.no_grad():
+        for idx in range(len(dataset)):
+            image_id = dataset.data.iloc[idx]['image_id']
+            label    = int(dataset.data.iloc[idx]['label'])
+            img      = Image.open(dataset.image_dir / (image_id + '.jpg')).convert('RGB')
+            preds = [torch.sigmoid(model(t(img).unsqueeze(0).to(device))).item()
+                     for t in tta_transforms]
+            all_probs.append(np.mean(preds))
+            all_labels.append(label)
+    return np.array(all_probs), np.array(all_labels)
+
+print('Running TTA on validation set...')
+val_probs, val_labels = tta_predict(model, val_dataset_raw, device, tta_transforms)
+
+thresholds = np.arange(0.01, 0.90, 0.01)
+f2_scores  = [fbeta_score(val_labels, (val_probs >= t).astype(int), beta=2, pos_label=1, zero_division=0)
+              for t in thresholds]
+best_threshold = thresholds[np.argmax(f2_scores)]
+print(f'Best threshold: {best_threshold:.2f} | Val F2: {max(f2_scores):.4f}')
+```
+
+For metadata-fusion models, pass `metadata` alongside the image — see `notebooks/resnet/06.resnet_metadata.ipynb` as the reference.
+
+### Cell 15 (TTA variant) — Test Set Evaluation with TTA
+
+```python
+from sklearn.metrics import roc_auc_score, balanced_accuracy_score, classification_report
+
+test_dataset_raw = HAM10000Dataset(
+    csv_path=str(ROOT / 'data_new/splits/test.csv'),
+    image_dir=str(ROOT / 'data_new/images/test'),
+    transform=None,
+)
+
+print('Running TTA on test set...')
+test_probs, test_labels = tta_predict(model, test_dataset_raw, device, tta_transforms)
+all_preds = (test_probs >= best_threshold).astype(int)
+
+auc     = roc_auc_score(test_labels, test_probs)
+bal_acc = balanced_accuracy_score(test_labels, all_preds)
+f2      = fbeta_score(test_labels, all_preds, beta=2, pos_label=1, zero_division=0)
+
+print(f'Threshold:          {best_threshold:.2f}')
+print(f'AUC-ROC:            {auc:.4f}')
+print(f'Balanced Accuracy:  {bal_acc:.4f}')
+print(f'F2 Score:           {f2:.4f}')
+print()
+print(classification_report(test_labels, all_preds, target_names=['Non-Melanoma', 'Melanoma'], digits=4))
+```
+
+**Do not seed before `tta_predict` calls.** All transforms are deterministic, so no seeding is needed at inference time.
+
+---
+
 ## Architecture Folder Summary markdown
 
 Every architecture folder under `notebooks/` must contain a `architecture_summary.md` that:
@@ -305,8 +408,8 @@ See `notebooks/resnet50/README.md` as the reference example.
 | Cells | Content | Changes between experiments? |
 |---|---|---|
 | 1 | Markdown intro | Yes — Objective, Architecture table, Hypothesis |
-| 2–3 | Setup | No — same imports, seed, device |
-| 4–5 | Data loading | No — same dataset, splits, augmentation |
+| 2–3 | Setup | No — same imports, `seed_everything`, device |
+| 4–5 | Data loading | No — same dataset, splits, augmentation; `seed_worker` and `g` always passed to train loader |
 | 6–7 | Model definition | Yes — model, unfrozen layers, LRs, lambdas, dropout |
 | 8–9 | Training loop | Minimal — checkpoint filename, lambda args |
 | 10–11 | Training curves | No |
