@@ -1,6 +1,7 @@
 data/raw
 data_new/raw
 data_new/images
+data_new/images_380
 
 # model parameters
 /models/
