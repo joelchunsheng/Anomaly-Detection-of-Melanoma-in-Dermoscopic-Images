@@ -32,7 +32,8 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-> On macOS, use `source .venv/bin/activate` to activate the virtual environment.
+> On macOS, use `source .venv/bin/activate` to activate the virtual environment. <br/>
+> On Windows PowerShell, use `.\.venv\Scripts\Activate.ps1`.
 
 ### 2. Install requirements
 
