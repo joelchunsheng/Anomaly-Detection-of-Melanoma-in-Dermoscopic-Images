@@ -1,27 +1,32 @@
+import torch
 import torch.nn as nn
-from torchvision import models
+from torchvision.models import vit_b_16, ViT_B_16_Weights
 
 
-def get_vit(
-    num_classes: int = 1,
-    freeze_backbone: bool = False,
-    dropout: float = 0.0,
-):
-    model = models.vit_b_16(weights=models.ViT_B_16_Weights.DEFAULT)
+class ViTBinaryClassifier(nn.Module):
+    def __init__(self, pretrained: bool = True, freeze_backbone: bool = False):
+        super().__init__()
 
-    if freeze_backbone:
-        for param in model.parameters():
-            param.requires_grad = False
+        # Load pretrained ViT-B/16 if requested
+        if pretrained:
+            weights = ViT_B_16_Weights.DEFAULT
+            self.model = vit_b_16(weights=weights)
+        else:
+            self.model = vit_b_16(weights=None)
 
-    in_features = model.heads.head.in_features
-    if dropout > 0.0:
-        model.heads = nn.Sequential(
-            nn.Dropout(p=dropout),
-            nn.Linear(in_features, num_classes),
-        )
-    else:
-        model.heads = nn.Sequential(
-            nn.Linear(in_features, num_classes),
-        )
+        # Optionally freeze the feature extractor first
+        if freeze_backbone:
+            for param in self.model.parameters():
+                param.requires_grad = False
 
-    return model
+        # Replace the classification head
+        in_features = self.model.heads.head.in_features
+        self.model.heads.head = nn.Linear(in_features, 1)
+
+        # If backbone was frozen, allow the new head to train
+        if freeze_backbone:
+            for param in self.model.heads.head.parameters():
+                param.requires_grad = True
+
+    def forward(self, x):
+        return self.model(x)

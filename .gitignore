@@ -3,7 +3,7 @@ data_new/raw
 data_new/images
 
 # model parameters
-models/
+/models/
 
 # macOS
 .DS_Store
