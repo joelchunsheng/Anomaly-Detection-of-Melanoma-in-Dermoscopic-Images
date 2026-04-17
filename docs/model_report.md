@@ -4,7 +4,58 @@ This section details the development, rationale, and performance of various deep
 
 ---
 
-## 1. ResNet-18 Experiments (`notebooks/resnet/`)
+## 1. Custom CNN Experiments (`notebooks/cnn/`)
+
+### Architecture & Strategy
+This series explores custom CNN architectures trained from scratch as a baseline before any transfer learning. Four variants were tested: a simple 3-conv baseline, the same with class-weighted loss, a BatchNorm variant, a deeper version, and a residual variant. All use Adam + BCEWithLogitsLoss with `pos_weight`.
+
+### Results Summary
+| # | Notebook | Architecture | Key Change | Test F2 | Test Recall | Test Precision | AUC-ROC |
+|---|---|---|---|---|---|---|---|
+| 01 | `01.cnn_baseline` | Simple CNN | No weighting, no BN | 0.5676 | 0.8246 | 0.2527 | 0.8449 |
+| 02 | `02.cnn_baseline_weighted` | Simple CNN | + pos_weight | 0.5670 | **0.8713** | 0.2365 | 0.8471 |
+| 03 | `03.cnn_batchnorm_weighted` | CNN + BatchNorm | + BatchNorm | **0.5900** | 0.7895 | **0.2935** | 0.8520 |
+| 04 | `04.cnn_deeper_batchnorm_weighted` | Deeper CNN + BN | + depth | 0.5525 | 0.7076 | 0.2944 | 0.8538 |
+| 05 | `05.cnn_residual_batchnorm_weighted` | Residual CNN | + skip connections | 0.5814 | 0.8187 | 0.2692 | **0.8672** |
+
+### Iteration Intuition & Reasoning
+- **Class weighting (01 → 02)**: Adding `pos_weight` shifted the model toward higher recall (0.8246 → 0.8713) but produced no F2 gain — it adjusts the operating point without improving the underlying discriminative ability.
+- **BatchNorm (02 → 03)**: Normalising activations stabilised training and improved precision-recall balance, yielding the best F2 (0.5900). BatchNorm acts as implicit regularization on a small dataset, reducing internal covariate shift.
+- **Depth alone (03 → 04)**: Adding layers without skip connections hurt recall and F2 despite a marginal AUC gain — the vanishing gradient problem limits deeper plain CNNs on small datasets.
+- **Residual connections (04 → 05)**: Skip connections resolved gradient flow, producing the best AUC (0.8672) and strong recall (0.8187). However precision fell, giving a lower F2 than the simpler BatchNorm model — the residual network's higher capacity introduces more aggressive positive predictions.
+
+### Cross-Architecture Context
+The CNN series establishes the from-scratch baseline: AUC peaks at 0.8672, well below what transfer learning achieves. The progression confirms that **architectural improvements** (BatchNorm, residual connections) provide meaningful gains even without pretraining, but the capacity ceiling of small custom CNNs is clear. The jump to transfer learning (DenseNet, ResNet) is motivated by this ceiling.
+
+---
+
+## 2. DenseNet-121 Experiments (`notebooks/densenet/`)
+
+### Architecture & Strategy
+DenseNet-121 trained from scratch, exploring the effect of class weighting, head architecture (BatchNorm vs Dropout), and pretrained frozen backbones. All experiments use AdamW + CosineAnnealingLR, 30 epochs.
+
+### Results Summary
+| # | Notebook | Pretrained | Frozen | Head Structure | Dropout | Pos Weight | Best Val F2 | Test F2 | Test Recall | Test Precision | AUC-ROC |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 01 | `01.densenet121_baseline` | No | No | Linear | 0.0 | No | 0.5997 | 0.5771 | 0.8012 | 0.2724 | 0.8570 |
+| 02 | `02.densenet121_baseline_weighted` | No | No | Linear | 0.0 | Yes | 0.5945 | 0.5837 | **0.8889** | 0.2460 | 0.8531 |
+| 03 | `03.densenet121_batchnorm_weighted` | No | No | Linear → BN → ReLU → Linear | 0.0 | Yes | 0.5978 | **0.5964** | 0.8246 | **0.2831** | **0.8580** |
+| 04 | `04.densenet121_dropout_weighted` | No | No | Linear → ReLU → Dropout → Linear | 0.5 | Yes | 0.6122 | 0.5882 | **0.8889** | 0.2500 | 0.8543 |
+| 05 | `05.densenet121_pretrained_weighted` | Yes | Yes | Linear → ReLU → Dropout → Linear | 0.4 | Yes | 0.5814 | 0.5516 | 0.8070 | 0.2434 | 0.8449 |
+
+### Iteration Intuition & Reasoning
+- **Unweighted baseline (01)**: AUC of 0.857 shows DenseNet-121 features have reasonable transferability to dermoscopy even from scratch, but without `pos_weight` the model under-prioritises the minority class — a very low threshold (0.17) is needed to recover recall.
+- **Adding pos_weight (02)**: Loss reweighting meaningfully improves recall (0.8012 → 0.8889) and balanced accuracy, confirming class imbalance was a key bottleneck. AUC dips marginally due to the loss landscape shift.
+- **BatchNorm head (03)**: Best overall result — highest Test F2 (0.5964), highest AUC (0.8580), and best balanced accuracy. The hidden layer with BatchNorm adds capacity and stabilises activations without overfitting.
+- **Dropout head (04)**: Matches recall (0.8889) but achieves lower F2 and AUC than the BatchNorm variant. Stochastic regularisation is less effective than normalisation for this dataset size when training from scratch.
+- **Pretrained frozen backbone (05)**: Counterintuitively the worst configuration. Freezing the ImageNet backbone limits adaptation to dermoscopy-specific features, and the small trainable head lacks capacity to compensate. This challenges the assumption that pretrained features always help.
+
+### Cross-Architecture Context
+DenseNet-121 from scratch (best AUC 0.858) slightly outperforms the best custom CNN (0.867) but the gap is small — the dense connectivity pattern gives moderate feature reuse benefits. The pretrained-frozen experiment foreshadowed a finding later repeated in ResNet-50 and EfficientNet-B4: **frozen pretrained features underperform fine-tuned ones** on dermoscopy, where texture patterns differ meaningfully from ImageNet.
+
+---
+
+## 4. ResNet-18 Experiments (`notebooks/resnet/`)
 
 ### Architecture & Strategy
 The ResNet-18 series focuses on adapting a lightweight residual network to dermoscopic images. For metadata experiments, a custom `ResNet18WithMetadata` architecture was used, which fuses 512-dim image features with a 32-dim encoding of patient metadata (age, sex, anatomical site) before the final classification head.
@@ -32,7 +83,7 @@ ResNet-18 sets the project baseline as the simplest architecture. Its best model
 
 ---
 
-## 2. ResNet-50 Experiments (`notebooks/resnet50/`)
+## 5. ResNet-50 Experiments (`notebooks/resnet50/`)
 
 ### Architecture & Strategy
 ResNet-50 utilizes a deeper bottleneck architecture. The `ResNet50WithMetadata` model fuses 2048-dim image features with patient metadata.
@@ -62,7 +113,7 @@ ResNet-50 consistently underperformed ResNet-18 across comparable configurations
 
 ---
 
-## 3. EfficientNet Experiments (`notebooks/efficientnet/`)
+## 6. EfficientNet Experiments (`notebooks/efficientnet/`)
 
 ### Architecture & Strategy
 EfficientNet variants (B0, B3, B4) were evaluated. The `EfficientNetB0WithMetadata` and `EfficientNetB4WithMetadata` models fuse image features with 32-dim metadata.
@@ -93,7 +144,29 @@ EfficientNet-B0 represents a significant leap over both ResNet variants. Its bes
 
 ---
 
-## 4. MobileNet Experiments (`notebooks/mobilenet/`)
+## 7. ViT-B/16 Experiments (`notebooks/vit/`)
+
+### Architecture & Strategy
+Pretrained ViT-B/16 adapted for binary melanoma classification. Two fine-tuning strategies were explored: a simple weighted BCE baseline and staged fine-tuning (head warm-up first, then full backbone), combined with focal loss vs weighted BCE.
+
+### Results Summary
+| # | Notebook | Key Change | Best Val F2 | Test F2 | Test Recall | Test Precision | AUC-ROC |
+|---|---|---|---|---|---|---|---|
+| 01 | `01.vit_b16_weighted` | Weighted BCE baseline | — | 0.6005 | **0.8421** | 0.2796 | 0.8837 |
+| 02 | `02.vit_b16_focal_staged_finetune` | + Focal loss + staged fine-tuning | — | **0.6314** | 0.7953 | 0.3461 | 0.9042 |
+| 03 | `03.vit_b16_weighted_staged_finetune` | Staged fine-tuning + weighted BCE | — | 0.6256 | 0.7251 | **0.4039** | **0.9066** |
+
+### Iteration Intuition & Reasoning
+- **Weighted BCE baseline (01)**: ViT's global self-attention provides a strong screening baseline out of the box (AUC 0.8837, recall 0.8421) — it sees the full lesion context in a single forward pass, unlike CNNs which rely on local receptive fields. However, the simple fine-tuning strategy leaves precision weak (0.2796).
+- **Focal loss + staged fine-tuning (02)**: Warming up the classification head before unfreezing the backbone prevents the pretrained attention weights from being destroyed by a large gradient signal on the first epoch. Focal loss's down-weighting of easy negatives further sharpens discrimination, boosting AUC to 0.9042 and F2 to 0.6314.
+- **Staged fine-tuning + weighted BCE (03)**: The staged schedule alone (without focal loss) achieves the best AUC (0.9066) and precision (0.4039), confirming that the fine-tuning schedule — not the loss function — is the primary driver of the AUC improvement. However, weighted BCE under this schedule becomes too conservative, dropping recall to 0.7251 and F2 to 0.6256.
+
+### Cross-Architecture Context
+ViT-B/16 (best AUC 0.9066, best F2 0.6314) sits between ResNet-18 (0.9133 / 0.6704) and the EfficientNet-B0 family. Despite ViT's theoretical advantage from global attention, it underperformed EfficientNet-B0 on this dataset — likely because the 10K-image HAM10000 is too small to fully leverage ViT's data-hungry attention mechanism. The staged fine-tuning insight (protect pretrained weights during early training) proved broadly applicable and influenced the partial-unfreeze strategy used in later EfficientNet and MobileNet experiments.
+
+---
+
+## 8. MobileNet Experiments (`notebooks/mobilenet/`)
 
 ### Architecture & Strategy
 MobileNetV3-Large utilizes inverted residual blocks and Squeeze-and-Excitation.
@@ -117,8 +190,11 @@ MobileNetV3 as a standalone model (AUC=0.9114, F2=0.6492) slots between the ResN
 
 | Folder | Best Notebook | AUC | Melanoma Recall | Test F2 |
 |---|---|---|---|---|
+| `cnn/` | `05.cnn_residual_batchnorm_weighted` | 0.8672 | 0.8187 | 0.5814 |
+| `densenet/` | `03.densenet121_batchnorm_weighted` | 0.8580 | 0.8246 | 0.5964 |
 | `resnet/` | `04.resnet_augmented_v2` | 0.9133 | 0.7778 | 0.6704 |
 | `resnet50/` | `05.resnet50_layer4_l1_l2` | 0.8841 | 0.7485 | 0.6184 |
+| `vit/` | `03.vit_b16_weighted_staged_finetune` | 0.9066 | 0.7251 | 0.6256 |
 | **`efficientnet/`** | **`06.efficientnet_b0_l1_metadata_tta`** | 0.9182 | **0.8830** | **0.6952** |
 | **`mobilenet/`** | **`02.mobilenet_v3_efficientnet_b0_ensemble`** | **0.9235** | 0.8772 | 0.6781 |
 
