@@ -175,8 +175,8 @@ def render_dataset_tab() -> None:
     st.dataframe(additional_stats, width="stretch", hide_index=True)
 
     st.markdown("### Sample Images")
-    melanoma_images = discover_sample_images(Path("assets/sample_images/melanoma"))
-    nevus_images = discover_sample_images(Path("assets/sample_images/nevus"))
+    melanoma_images = discover_sample_images(Path("streamlit/assets/sample_images/melanoma"))
+    nevus_images = discover_sample_images(Path("streamlit/assets/sample_images/nevus"))
     gallery_left, gallery_right = st.columns(2, gap="large")
     with gallery_left:
         render_sample_gallery("Melanoma Samples", melanoma_images, fallback_text="Add melanoma sample images to `assets/sample_images/melanoma/`.")
