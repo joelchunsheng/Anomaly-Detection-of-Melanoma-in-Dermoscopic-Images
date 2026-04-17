@@ -33,6 +33,12 @@ def create_data_splits(
     test_df["label"] = _map_label(test_df["dx"])
     test_df = test_df[["image_id", "label"]].reset_index(drop=True)
 
+    # ISIC_0035068 has no corresponding image file
+    missing_images = {"ISIC_0035068"}
+    train_df = train_df[~train_df["image_id"].isin(missing_images)].reset_index(drop=True)
+    val_df = val_df[~val_df["image_id"].isin(missing_images)].reset_index(drop=True)
+    test_df = test_df[~test_df["image_id"].isin(missing_images)].reset_index(drop=True)
+
     train_df.to_csv(output_dir / "train.csv", index=False)
     val_df.to_csv(output_dir / "val.csv", index=False)
     test_df.to_csv(output_dir / "test.csv", index=False)
